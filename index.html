@@ -555,6 +555,9 @@
         // API CONFIGURATION
         // ============================================
         const API_URL = 'https://script.google.com/macros/s/AKfycbxg7DmF7cYLUot3aWHLyhyqJhSjHf3lT6aLp4VR1dm-lEjXqv4v2onkQ5bO3hFJzHTuUA/exec';
+        
+        // OpenAI API Key - REPLACE THIS WITH YOUR ACTUAL KEY
+        const OPENAI_API_KEY = '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';
 
         // ============================================
         // API FUNCTIONS
@@ -593,6 +596,68 @@
                 if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
             } catch (e) {}
             return null;
+        }
+
+        // ============================================
+        // AI NUTRITION LOOKUP
+        // ============================================
+
+        async function getNutritionFromAI(foodDescription) {
+            if (!OPENAI_API_KEY || OPENAI_API_KEY === 'YOUR_OPENAI_API_KEY_HERE') {
+                throw new Error('Please add your OpenAI API key');
+            }
+
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: 'gpt-4o-mini',
+                    messages: [
+                        {
+                            role: 'system',
+                            content: 'You are a nutrition expert. Analyze food descriptions and return ONLY a JSON object with nutritional information. Be as accurate as possible based on typical serving sizes.'
+                        },
+                        {
+                            role: 'user',
+                            content: `Analyze this food and return ONLY a JSON object (no markdown, no explanation):
+                            
+"${foodDescription}"
+
+Return format:
+{
+  "calories": <number>,
+  "protein_g": <number>,
+  "sugar_g": <number>
+}
+
+Example: {"calories": 250, "protein_g": 12, "sugar_g": 5}`
+                        }
+                    ],
+                    temperature: 0.3,
+                    max_tokens: 150
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error?.message || 'AI request failed');
+            }
+
+            const data = await response.json();
+            const content = data.choices[0].message.content.trim();
+            
+            // Clean up response (remove markdown code blocks if present)
+            const jsonStr = content.replace(/```json\n?|\n?```/g, '').trim();
+            const nutritionData = JSON.parse(jsonStr);
+            
+            return {
+                calories: nutritionData.calories || 0,
+                protein: nutritionData.protein_g || 0,
+                sugar: nutritionData.sugar_g || 0
+            };
         }
 
         // ============================================
@@ -1244,6 +1309,33 @@
                 notes: ''
             });
 
+            const [isLoadingNutrition, setIsLoadingNutrition] = useState(false);
+            const [nutritionError, setNutritionError] = useState(null);
+
+            const handleGetNutrition = async () => {
+                if (!formData.foodItem.trim()) {
+                    setNutritionError('Please enter a food item first');
+                    return;
+                }
+
+                setIsLoadingNutrition(true);
+                setNutritionError(null);
+
+                try {
+                    const nutrition = await getNutritionFromAI(formData.foodItem);
+                    setFormData(prev => ({
+                        ...prev,
+                        calories: nutrition.calories.toString(),
+                        protein: nutrition.protein.toString(),
+                        sugar: nutrition.sugar.toString()
+                    }));
+                } catch (err) {
+                    setNutritionError(err.message || 'Failed to get nutrition info');
+                } finally {
+                    setIsLoadingNutrition(false);
+                }
+            };
+
             const handleSubmit = () => {
                 onSubmit({ type: 'food', ...formData });
             };
@@ -1282,10 +1374,24 @@
                             <input 
                                 type="text" 
                                 className="form-input"
-                                placeholder="e.g., Grilled chicken salad"
+                                placeholder="e.g., Grilled chicken salad, 2 eggs with toast"
                                 value={formData.foodItem}
                                 onChange={e => setFormData(prev => ({ ...prev, foodItem: e.target.value }))}
                             />
+                            <button 
+                                type="button"
+                                className="btn btn-primary"
+                                onClick={handleGetNutrition}
+                                disabled={isLoadingNutrition}
+                                style={{ marginTop: '10px', width: '100%' }}
+                            >
+                                {isLoadingNutrition ? '⏳ Getting nutrition info...' : '🤖 Get Nutrition Info from AI'}
+                            </button>
+                            {nutritionError && (
+                                <div style={{ color: '#f44336', marginTop: '8px', fontSize: '0.9em' }}>
+                                    {nutritionError}
+                                </div>
+                            )}
                         </div>
 
                         <div className="form-group">
