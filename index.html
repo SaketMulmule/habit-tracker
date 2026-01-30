@@ -30,14 +30,14 @@
         /* Top Bar */
         .top-bar {
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-start;
             align-items: center;
             margin-bottom: 20px;
             gap: 10px;
             flex-wrap: wrap;
         }
 
-        .refresh-btn, .toggle-debug-btn {
+        .refresh-btn {
             background: rgba(255, 255, 255, 0.2);
             backdrop-filter: blur(10px);
             border: 2px solid rgba(255, 255, 255, 0.3);
@@ -50,35 +50,10 @@
             font-size: 14px;
         }
 
-        .refresh-btn:hover, .toggle-debug-btn:hover {
+        .refresh-btn:hover {
             background: rgba(255, 255, 255, 0.3);
             transform: translateY(-2px);
         }
-
-        /* Debug Panel */
-        .debug-panel {
-            background: rgba(0, 0, 0, 0.9);
-            color: #0f0;
-            padding: 20px;
-            border-radius: 15px;
-            margin-bottom: 20px;
-            font-family: 'Space Mono', 'Courier New', monospace;
-            font-size: 11px;
-            max-height: 200px;
-            overflow-y: auto;
-            border: 2px solid #0f0;
-        }
-
-        .debug-title {
-            color: #ff0;
-            font-weight: bold;
-            margin-bottom: 10px;
-            font-size: 14px;
-        }
-
-        .debug-error { color: #f00; margin: 3px 0; }
-        .debug-success { color: #0f0; margin: 3px 0; }
-        .debug-info { color: #0af; margin: 3px 0; }
 
         /* Messages */
         .success-message {
@@ -247,6 +222,7 @@
             padding: 30px;
             margin-bottom: 30px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow-x: auto; /* Allow horizontal scroll on mobile */
         }
 
         .week-title {
@@ -261,6 +237,7 @@
             grid-template-columns: 150px repeat(7, 1fr);
             gap: 10px;
             align-items: center;
+            min-width: 700px; /* Ensure minimum width for all columns */
         }
 
         .week-header {
@@ -528,15 +505,30 @@
                 font-size: 1.8em;
             }
 
+            .week-view {
+                padding: 20px;
+            }
+
             .week-grid {
-                grid-template-columns: 100px repeat(7, 1fr);
+                grid-template-columns: 90px repeat(7, minmax(50px, 1fr));
                 gap: 5px;
-                font-size: 0.85em;
+                font-size: 0.8em;
+                min-width: 650px; /* Slightly smaller but shows all columns */
+            }
+
+            .week-header {
+                font-size: 0.75em;
+                padding: 8px 4px;
+            }
+
+            .week-habit {
+                font-size: 0.9em;
+                padding: 12px 5px;
             }
 
             .week-day {
-                font-size: 1.5em;
-                padding: 10px 5px;
+                font-size: 1.3em;
+                padding: 8px 4px;
             }
 
             .streaks-grid {
@@ -557,7 +549,7 @@
         const API_URL = 'https://script.google.com/macros/s/AKfycbxg7DmF7cYLUot3aWHLyhyqJhSjHf3lT6aLp4VR1dm-lEjXqv4v2onkQ5bO3hFJzHTuUA/exec';
         
         // OpenAI API Key - REPLACE THIS WITH YOUR ACTUAL KEY
-        const OPENAI_API_KEY = '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';
+        const OPENAI_API_KEY = 'YOUR_OPENAI_API_KEY_HERE';
 
         // ============================================
         // API FUNCTIONS
@@ -665,8 +657,6 @@ Example: {"calories": 250, "protein_g": 12, "sugar_g": 5}`
         // ============================================
 
         function HabitTrackerApp() {
-            const [debugLogs, setDebugLogs] = useState([]);
-            const [showDebug, setShowDebug] = useState(false);
             const [error, setError] = useState(null);
             const [success, setSuccess] = useState(null);
             const [isLoading, setIsLoading] = useState(true);
@@ -696,12 +686,6 @@ Example: {"calories": 250, "protein_g": 12, "sugar_g": 5}`
                 }
             });
 
-            const addLog = (message, type = 'info') => {
-                setDebugLogs(prev => [...prev.slice(-50), { 
-                    message, type, time: new Date().toLocaleTimeString() 
-                }]);
-            };
-
             useEffect(() => {
                 loadData();
             }, []);
@@ -709,20 +693,9 @@ Example: {"calories": 250, "protein_g": 12, "sugar_g": 5}`
             async function loadData() {
                 setIsLoading(true);
                 setError(null);
-                
-                if (showDebug) {
-                    setDebugLogs([]);
-                    addLog('🔄 Loading data from Google Sheets...', 'info');
-                }
 
                 try {
                     const rawData = await getAllData();
-                    
-                    if (showDebug) {
-                        addLog(`✅ Loaded ${rawData.workouts.length - 1} workouts`, 'success');
-                        addLog(`✅ Loaded ${rawData.meditation.length - 1} meditations`, 'success');
-                        addLog(`✅ Loaded ${rawData.food.length - 1} food entries`, 'success');
-                    }
 
                     const processed = processData(
                         rawData.workouts.slice(1),
@@ -733,11 +706,8 @@ Example: {"calories": 250, "protein_g": 12, "sugar_g": 5}`
                     
                     setData(processed);
 
-                    if (showDebug) addLog('✅ Data processing complete!', 'success');
-
                 } catch (err) {
                     setError(err.message);
-                    if (showDebug) addLog(`❌ ERROR: ${err.message}`, 'error');
                 }
 
                 setIsLoading(false);
@@ -909,22 +879,7 @@ Example: {"calories": 250, "protein_g": 12, "sugar_g": 5}`
                         <button className="refresh-btn" onClick={loadData}>
                             🔄 Refresh Data
                         </button>
-                        <button className="toggle-debug-btn" onClick={() => setShowDebug(!showDebug)}>
-                            {showDebug ? '🔒 Hide Debug' : '🔧 Show Debug'}
-                        </button>
                     </div>
-
-                    {/* Debug Panel */}
-                    {showDebug && (
-                        <div className="debug-panel">
-                            <div className="debug-title">📊 DEBUG CONSOLE</div>
-                            {debugLogs.map((log, i) => (
-                                <div key={i} className={`debug-${log.type}`}>
-                                    [{log.time}] {log.message}
-                                </div>
-                            ))}
-                        </div>
-                    )}
 
                     {/* Messages */}
                     {success && <div className="success-message">{success}</div>}
